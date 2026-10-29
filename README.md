@@ -1,8 +1,10 @@
-# ReaxNet Lite
+# ReaxPath Studio
 
-一个面向 LAMMPS ReaxFF 轨迹的反应分析核心库。它读取标准
+一个面向 LAMMPS ReaxFF 轨迹的本地分析工作台，分析核心为 `reaxnet-lite`。它读取标准
 `fix reax/c/bonds` 输出，识别每一帧中的分子、相邻帧之间的反应事件，生成
-SMILES/InChI，并将重复的正逆反应聚合为反应网络。
+可选的 SMILES/InChI，并将重复的正逆反应聚合为反应网络。
+
+工作台的安装和启动方法见 [Web 启动说明](web/README.md)。
 
 2026-10-28 的解析与分子构建性能优化及逐事件等价验证见
 [反应分析性能验证](docs/reaction_analysis_performance_2026-10-28.md)。
