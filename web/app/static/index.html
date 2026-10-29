@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>ReaxPath Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%230a6b61'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-family='Arial' font-size='23' font-weight='700' fill='white'%3ERP%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/app.css?v=20261028-counts">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-block">
+      <span class="brand-mark" aria-hidden="true">RP</span>
+      <div>
+        <h1>ReaxPath Studio</h1>
+        <p>ReaxFF reaction pathway workbench</p>
+      </div>
+    </div>
+    <div class="service-state" id="service-state">
+      <span class="state-dot" aria-hidden="true"></span>
+      <span>正在连接</span>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="control-panel" aria-label="分析设置">
+      <form id="analysis-form">
+        <section class="control-section">
+          <div class="section-heading">
+            <span class="section-number">01</span>
+            <h2>数据来源</h2>
+          </div>
+          <div class="segmented" role="tablist" aria-label="数据来源模式">
+            <button type="button" class="segment active" data-mode="local" role="tab" aria-selected="true">本机路径</button>
+            <button type="button" class="segment" data-mode="upload" role="tab" aria-selected="false">分块上传</button>
+          </div>
+
+          <div id="local-source" class="source-pane">
+            <label for="bonds-path">Bonds 文件绝对路径</label>
+            <input id="bonds-path" name="bonds_path" type="text" spellcheck="false" autocomplete="off" placeholder="D:\data\bonds.reaxc">
+            <div class="field-meta"><span>推荐用于 GB 级文件</span><span>不复制源文件</span></div>
+          </div>
+
+          <div id="upload-source" class="source-pane hidden">
+            <label class="file-picker" for="bonds-file">
+              <span id="file-name">选择 bonds 文件</span>
+              <strong>浏览</strong>
+            </label>
+            <input id="bonds-file" name="bonds_file" type="file" hidden>
+            <div class="field-meta"><span id="file-size">8 MiB 分块</span><span>支持断点续传</span></div>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading">
+            <span class="section-number">02</span>
+            <h2>分析设置</h2>
+          </div>
+          <label for="element-mapping">LAMMPS 类型映射</label>
+          <input id="element-mapping" name="element_mapping" type="text" value="1:C,2:H,3:O" spellcheck="false">
+
+          <div class="input-grid">
+            <div>
+              <label for="timestep-scale">时间步 / ps</label>
+              <input id="timestep-scale" name="timestep_scale" type="number" min="0" step="0.000001" value="0.0001">
+            </div>
+          </div>
+
+          <label for="expected-interval">保存帧间隔 / step（可选）</label>
+          <input id="expected-interval" name="expected_interval" type="number" min="1" step="1" placeholder="留空时由前两帧推定">
+          <label for="recrossing-window">往返标记窗口 / ps</label>
+          <input id="recrossing-window" name="recrossing_window" type="number" min="0" step="0.001" value="0">
+          <p class="setting-note">0 为关闭；原始事件始终保留，标记供汇总筛选。</p>
+
+          <label class="toggle-row" for="generate-identifiers">
+            <span>
+              <strong>附加分子标识</strong>
+              <small>SMILES / InChI / InChIKey</small>
+            </span>
+            <input id="generate-identifiers" name="generate_identifiers" type="checkbox" checked>
+            <span class="toggle" aria-hidden="true"></span>
+          </label>
+        </section>
+
+        <button id="run-button" class="primary-button" type="submit">开始分析</button>
+        <p class="form-error hidden" id="form-error" role="alert"></p>
+      </form>
+    </aside>
+
+    <section class="workspace" aria-live="polite">
+      <div id="empty-state" class="empty-state">
+        <div class="empty-graphic" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <h2>等待分析任务</h2>
+        <p>读取文件拓扑，查看相邻保存帧之间的候选反应及原子去向。</p>
+      </div>
+
+      <div id="job-view" class="job-view hidden">
+        <div class="job-header">
+          <div>
+            <div class="job-kicker">ANALYSIS JOB <span id="job-short-id">-</span></div>
+            <h2 id="job-filename">-</h2>
+          </div>
+          <span class="status-badge" id="job-status">等待</span>
+        </div>
+
+        <div id="progress-region" class="progress-region">
+          <div class="progress-copy">
+            <span id="progress-stage">准备分析</span>
+            <strong id="progress-percent">0%</strong>
+          </div>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span id="progress-bar"></span>
+          </div>
+          <div class="progress-detail">
+            <span id="progress-message">任务已创建</span>
+            <span id="progress-volume"></span>
+          </div>
+        </div>
+
+        <div id="results" class="results hidden">
+          <div class="metrics" id="metrics"></div>
+
+          <nav class="result-tabs" aria-label="结果视图">
+            <button type="button" class="result-tab active" data-tab="events" aria-selected="true">反应事件</button>
+            <button type="button" class="result-tab" data-tab="bonds" aria-selected="false">键分析</button>
+            <button type="button" class="result-tab" data-tab="functional" aria-selected="false">官能团分析</button>
+            <button type="button" class="result-tab" data-tab="species" aria-selected="false">物种</button>
+            <button type="button" class="result-tab" data-tab="network" aria-selected="false">汇总网络</button>
+            <button type="button" class="result-tab" data-tab="files" aria-selected="false">输出文件</button>
+          </nav>
+
+          <section class="tab-panel hidden" data-panel="network">
+            <div class="network-heading">
+              <div>
+                <h3>聚合反应超图</h3>
+                <p id="network-caption">按已接受事件聚合</p>
+              </div>
+              <div class="network-legend">
+                <span><i class="legend-species"></i>物种</span>
+                <span><i class="legend-reaction"></i>反应</span>
+              </div>
+            </div>
+            <div id="network-canvas" class="network-canvas"></div>
+            <div id="reaction-list" class="reaction-list"></div>
+          </section>
+
+          <section class="tab-panel hidden" data-panel="species">
+            <div class="table-heading">
+              <div><h3>分子注册表</h3><p>按连接图去重后的物种标识</p></div>
+              <span id="species-count-label"></span>
+            </div>
+            <div class="table-scroll"><table id="species-table"></table></div>
+          </section>
+
+          <section class="tab-panel hidden" data-panel="bonds" aria-label="键数量随时间变化">
+            <div id="count-bonds" class="count-panel"></div>
+          </section>
+
+          <section class="tab-panel hidden" data-panel="functional" aria-label="官能团候选数量随时间变化">
+            <div id="count-functional" class="count-panel"></div>
+          </section>
+
+          <section class="tab-panel" data-panel="events">
+            <div class="table-heading">
+              <div><h3>候选反应事件</h3><p>按帧间隔查看连接变化；点击事件核对前后分子与原子去向。</p></div>
+            </div>
+            <form id="event-filters" class="event-filters" aria-label="筛选反应事件">
+              <div><label for="event-query">搜索反应 / 结构编号</label><input id="event-query" type="text" placeholder="例如 CH4 或 E000001"></div>
+              <div><label for="event-formula">参与分子的分子式</label><input id="event-formula" type="text" placeholder="例如 CH4"></div>
+              <div><label for="event-start">起始 step</label><input id="event-start" type="number" step="1" placeholder="不限"></div>
+              <div><label for="event-end">结束 step</label><input id="event-end" type="number" step="1" placeholder="不限"></div>
+              <div class="filter-actions"><button type="submit" class="small-button primary-small">筛选</button><button id="event-reset" type="button" class="small-button">清空</button></div>
+            </form>
+            <p id="event-error" class="inline-error hidden" role="alert"></p>
+            <div class="event-workspace">
+              <section class="event-list-panel" aria-label="事件列表">
+                <div class="event-list-heading"><span id="events-count-label" role="status"></span><label class="page-size-label" for="event-page-size">每页 <select id="event-page-size"><option>25</option><option selected>50</option><option>100</option></select></label></div>
+                <div class="table-scroll"><table id="events-table"></table></div>
+                <div class="event-pagination"><button id="event-prev" type="button" class="small-button" disabled>上一页</button><span id="event-page-label"></span><button id="event-next" type="button" class="small-button" disabled>下一页</button></div>
+              </section>
+              <section id="event-detail" class="event-detail" aria-label="事件详情" aria-live="polite"><p class="detail-placeholder">选择事件，查看反应前后的连接图。</p></section>
+            </div>
+          </section>
+
+          <section class="tab-panel hidden" data-panel="files">
+            <div class="table-heading">
+              <div><h3>分析产物</h3><p>CSV 与 JSON 输出</p></div>
+            </div>
+            <div id="output-files" class="output-files"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/event-browser.js?v=20261028-counts" defer></script>
+  <script src="/static/count-charts.js?v=20261028-counts" defer></script>
+  <script src="/static/app.js?v=20261028-counts" defer></script>
+</body>
+</html>

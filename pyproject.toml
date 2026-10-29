@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reaxnet-lite"
+version = "0.1.0"
+description = "ChemTraYzer-inspired analysis of LAMMPS ReaxFF bond trajectories"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "mako-star"}]
+dependencies = []
+
+[project.optional-dependencies]
+identifiers = ["rdkit>=2023.9"]
+
+[project.scripts]
+reaxnet = "reaxnet.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["reaxnet*"]

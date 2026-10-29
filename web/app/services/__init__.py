@@ -1,0 +1,1 @@
+"""Service layer: storage, jobs, analyzer adapters."""
